@@ -66,6 +66,7 @@ class FloatingService : android.app.Service() {
         wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         buildPanel()
         buildBubble()
+        showBubble()
         showPanel()
         ui.postDelayed(tick, 2500)
     }
@@ -207,7 +208,7 @@ class FloatingService : android.app.Service() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = dp(12); y = dp(140)
+            x = dp(4); y = dp(320)
         }
 
         var sx = 0; var sy = 0; var tx = 0f; var ty = 0f; var moved = false
@@ -222,32 +223,56 @@ class FloatingService : android.app.Service() {
                     bubbleParams.x = sx + dx; bubbleParams.y = sy + dy
                     wm.updateViewLayout(bubble, bubbleParams); true
                 }
-                MotionEvent.ACTION_UP -> { if (!moved) expand(); true }
+                MotionEvent.ACTION_UP -> { if (!moved) toggle(); true }
                 else -> false
             }
         }
     }
 
-    private fun showPanel() {
-        try { wm.addView(panel, panelParams) } catch (e: Exception) { stopSelf() }
+    private var panelShown = false
+    private var bubbleShown = false
+
+    private fun toast(msg: String) =
+        android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_SHORT).show()
+
+    private fun showBubble() {
+        if (bubbleShown) return
+        try {
+            wm.addView(bubble, bubbleParams)
+            bubbleShown = true
+        } catch (e: Exception) {
+            toast("Bubble nahi bana: " + e.message)
+        }
     }
 
+    private fun showPanel() {
+        if (panelShown) return
+        try {
+            wm.addView(panel, panelParams)
+            panelShown = true
+        } catch (e: Exception) {
+            toast("Window nahi khula: " + e.message)
+        }
+    }
+
+    /** panel chhupao -> sirf gol bubble screen pe rehta hai */
     private fun collapse() {
-        if (collapsed) return
-        collapsed = true
-        unread = 0
-        badge.visibility = View.GONE
+        if (!panelShown) return
         try { wm.removeView(panel) } catch (_: Exception) {}
-        try { wm.addView(bubble, bubbleParams) } catch (_: Exception) {}
+        panelShown = false
+        collapsed = true
+        showBubble()
     }
 
     private fun expand() {
-        if (!collapsed) return
         collapsed = false
         unread = 0
         badge.visibility = View.GONE
-        try { wm.removeView(bubble) } catch (_: Exception) {}
-        try { wm.addView(panel, panelParams) } catch (_: Exception) {}
+        showPanel()
+    }
+
+    private fun toggle() {
+        if (panelShown) collapse() else expand()
     }
 
     // ---------------- translation loop ----------------
@@ -309,7 +334,7 @@ class FloatingService : android.app.Service() {
                         ui.post {
                             if (done.length() > 0) {
                                 web.evaluateJavascript(injectJs(done), null)
-                                if (collapsed) {
+                                if (!panelShown) {
                                     unread += done.length()
                                     badge.text = if (unread > 9) "9+" else unread.toString()
                                     badge.visibility = View.VISIBLE
@@ -363,8 +388,8 @@ class FloatingService : android.app.Service() {
     override fun onDestroy() {
         super.onDestroy()
         ui.removeCallbacksAndMessages(null)
-        try { wm.removeView(panel) } catch (_: Exception) {}
-        try { wm.removeView(bubble) } catch (_: Exception) {}
+        try { if (panelShown) wm.removeView(panel) } catch (_: Exception) {}
+        try { if (bubbleShown) wm.removeView(bubble) } catch (_: Exception) {}
         io.shutdownNow()
     }
 }
