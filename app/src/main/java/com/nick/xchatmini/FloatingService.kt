@@ -68,6 +68,7 @@ class FloatingService : android.app.Service() {
         buildBubble()
         showBubble()
         showPanel()
+        android.widget.Toast.makeText(this, "XChatMini v2 — bubble ON", android.widget.Toast.LENGTH_LONG).show()
         ui.postDelayed(tick, 2500)
     }
 
